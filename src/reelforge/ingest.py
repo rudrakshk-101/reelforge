@@ -66,7 +66,10 @@ def ingest(url: str, job_dir: Path) -> SourceMeta:
 
     ydl_opts = {
         "outtmpl": outtmpl,
-        "format": "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080]/b",
+        # permissive: whatever these clients offer, cap height, always land something
+        "format": (
+            "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b/best"
+        ),
         "merge_output_format": "mp4",
         "writeinfojson": True,
         # Subtitles are best-effort only (Whisper does the real transcription) and
@@ -83,9 +86,10 @@ def ingest(url: str, job_dir: Path) -> SourceMeta:
         "extractor_retries": 5,
         "sleep_interval_requests": 1,
         "ignoreerrors": False,
-        # web_safari works with just cookies (no PO token); mweb/tv are fallbacks.
+        # web_safari + cookies extracts fine from datacenter IPs (no PO token needed);
+        # mweb / android are fallbacks. tv is excluded (hits "page needs reload").
         "extractor_args": {
-            "youtube": {"player_client": ["web_safari", "mweb", "tv"]}
+            "youtube": {"player_client": ["web_safari", "mweb", "android"]}
         },
     }
     if _COOKIES.exists() and _COOKIES.stat().st_size > 0:
