@@ -91,9 +91,12 @@ jobs:
             echo '!! youtube_cookies.txt EMPTY/MISSING'
           fi
           yt-dlp --version
-          yt-dlp -v --cookies secrets/youtube_cookies.txt --skip-download \
-            --extractor-args "youtube:player_client=default" \
-            --print "%(title)s | %(duration)s" "$URL" 2>&1 | grep -Ei "bgutil|pot token|POT|error|title|reload|playability" | tail -25 || true
+          for CL in web_safari mweb tv android; do
+            echo "--- client: $CL ---"
+            yt-dlp --cookies secrets/youtube_cookies.txt --skip-download --no-warnings \
+              --extractor-args "youtube:player_client=$CL" \
+              --print "%(title)s | %(duration)s" "$URL" 2>&1 | tail -4 || true
+          done
 
       - name: Process
         run: |

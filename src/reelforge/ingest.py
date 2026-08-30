@@ -83,9 +83,10 @@ def ingest(url: str, job_dir: Path) -> SourceMeta:
         "extractor_retries": 5,
         "sleep_interval_requests": 1,
         "ignoreerrors": False,
-        # cookies + the bgutil PO-token provider (started in CI on its default
-        # :4416) make the default web client work from datacenter IPs.
-        "extractor_args": {"youtube": {"player_client": ["default"]}},
+        # web_safari works with just cookies (no PO token); mweb/tv are fallbacks.
+        "extractor_args": {
+            "youtube": {"player_client": ["web_safari", "mweb", "tv"]}
+        },
     }
     if _COOKIES.exists() and _COOKIES.stat().st_size > 0:
         ydl_opts["cookiefile"] = str(_COOKIES)
