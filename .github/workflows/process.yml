@@ -53,6 +53,7 @@ jobs:
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+          PROXY_URL: ${{ secrets.PROXY_URL }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
@@ -71,6 +72,7 @@ jobs:
             echo "TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID"
             echo "YOUTUBE_CLIENT_SECRETS_FILE=secrets/youtube_client_secret.json"
             echo "YOUTUBE_TOKEN_FILE=secrets/youtube_token.json"
+            echo "PROXY_URL=$PROXY_URL"
             echo "R2_ENDPOINT=$R2_ENDPOINT"
             echo "R2_BUCKET=$R2_BUCKET"
             echo "R2_ACCESS_KEY=$R2_ACCESS_KEY"
@@ -91,11 +93,13 @@ jobs:
             echo '!! youtube_cookies.txt EMPTY/MISSING'
           fi
           yt-dlp --version
+          [ -n "$PROXY_URL" ] && echo "proxy: set (${#PROXY_URL} chars)" || echo "proxy: NOT set"
           yt-dlp --cookies secrets/youtube_cookies.txt --no-warnings \
+            ${PROXY_URL:+--proxy "$PROXY_URL"} \
             --extractor-args "youtube:player_client=web_safari,mweb,android" \
-            -f "bv*[height<=1080]+ba/b[height<=1080]/b" \
+            -f "bv*[height<=720]+ba/b[height<=720]/b" \
             --print "OK: %(title)s | %(duration)ss | %(format)s" \
-            --skip-download "$URL" 2>&1 | tail -6 || true
+            --skip-download "$URL" 2>&1 | tail -8 || true
 
       - name: Process
         run: |

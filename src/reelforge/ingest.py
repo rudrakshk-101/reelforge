@@ -64,12 +64,14 @@ def ingest(url: str, job_dir: Path) -> SourceMeta:
     job_dir.mkdir(parents=True, exist_ok=True)
     outtmpl = str(job_dir / "source.%(ext)s")
 
+    # Residential proxy — required to download from datacenter IPs (GitHub Actions).
+    proxy = os.environ.get("PROXY_URL", "").strip()
+
     ydl_opts = {
         "outtmpl": outtmpl,
-        # permissive: whatever these clients offer, cap height, always land something
-        "format": (
-            "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b/best"
-        ),
+        # 720p keeps proxy bandwidth (and cost) down; the blurred-bg vertical crop
+        # still looks fine on a phone. Bump to 1080 in this selector if you upgrade.
+        "format": "bv*[height<=720]+ba/b[height<=720]/bv*+ba/b/best",
         "merge_output_format": "mp4",
         "writeinfojson": True,
         # Subtitles are best-effort only (Whisper does the real transcription) and
@@ -94,6 +96,8 @@ def ingest(url: str, job_dir: Path) -> SourceMeta:
     }
     if _COOKIES.exists() and _COOKIES.stat().st_size > 0:
         ydl_opts["cookiefile"] = str(_COOKIES)
+    if proxy:
+        ydl_opts["proxy"] = proxy
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
