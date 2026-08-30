@@ -64,14 +64,14 @@ def ingest(url: str, job_dir: Path) -> SourceMeta:
     job_dir.mkdir(parents=True, exist_ok=True)
     outtmpl = str(job_dir / "source.%(ext)s")
 
-    # Residential proxy — required to download from datacenter IPs (GitHub Actions).
+    # Residential proxy — only needed to download from a datacenter IP (cloud).
+    # When running on a home connection (the laptop), leave PROXY_URL unset.
     proxy = os.environ.get("PROXY_URL", "").strip()
+    max_h = 720 if proxy else 1080  # cap resolution to save proxy bandwidth
 
     ydl_opts = {
         "outtmpl": outtmpl,
-        # 720p keeps proxy bandwidth (and cost) down; the blurred-bg vertical crop
-        # still looks fine on a phone. Bump to 1080 in this selector if you upgrade.
-        "format": "bv*[height<=720]+ba/b[height<=720]/bv*+ba/b/best",
+        "format": f"bv*[height<={max_h}]+ba/b[height<={max_h}]/bv*+ba/b/best",
         "merge_output_format": "mp4",
         "writeinfojson": True,
         # Subtitles are best-effort only (Whisper does the real transcription) and
@@ -88,10 +88,9 @@ def ingest(url: str, job_dir: Path) -> SourceMeta:
         "extractor_retries": 5,
         "sleep_interval_requests": 1,
         "ignoreerrors": False,
-        # web_safari + cookies extracts fine from datacenter IPs (no PO token needed);
-        # mweb / android are fallbacks. tv is excluded (hits "page needs reload").
+        # default works from a home IP; web_safari/mweb are fallbacks.
         "extractor_args": {
-            "youtube": {"player_client": ["web_safari", "mweb", "android"]}
+            "youtube": {"player_client": ["default", "web_safari", "mweb"]}
         },
     }
     if _COOKIES.exists() and _COOKIES.stat().st_size > 0:
