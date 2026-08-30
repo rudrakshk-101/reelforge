@@ -32,10 +32,14 @@ def _process(url: str) -> int:
     store = Store(cfg.db_file)
     job_id = store.add_job(url)
     if job_id is None:
-        row = store.get_job_by_url(url)
-        store.close()
-        notify.send_message(tok, chat, f"Already processed: {url}")
-        return 0
+        existing = store.get_job_by_url(url)
+        if existing and existing["status"] == "done":
+            store.close()
+            notify.send_message(tok, chat, f"Already done: {url}")
+            return 0
+        # a previous attempt failed or is stuck — retry it
+        job_id = existing["id"]
+        store.update_job(job_id, status="queued", error=None)
 
     if store.uploaded_in_last_24h() >= cfg["daily_post_cap"]:
         store.update_job(job_id, status="error", error="daily cap reached")
