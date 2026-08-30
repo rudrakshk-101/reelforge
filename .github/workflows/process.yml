@@ -35,8 +35,18 @@ jobs:
           curl -fsSL https://deno.land/install.sh | sh -s -- -y
           echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
 
+      - name: PO token provider (gets yt-dlp past YouTube's datacenter bot-check)
+        run: |
+          docker run --name bgutil-pot -d --restart unless-stopped \
+            -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:4416/ping >/dev/null && break || sleep 1
+          done
+
       - name: Install reelforge
-        run: pip install -e .
+        run: |
+          pip install -e .
+          pip install -U yt-dlp bgutil-ytdlp-pot-provider
 
       - name: Materialise secrets
         env:

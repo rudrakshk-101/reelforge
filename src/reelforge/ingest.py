@@ -83,8 +83,9 @@ def ingest(url: str, job_dir: Path) -> SourceMeta:
         "extractor_retries": 5,
         "sleep_interval_requests": 1,
         "ignoreerrors": False,
-        # try clients that are less aggressively bot-checked first
-        "extractor_args": {"youtube": {"player_client": ["tv", "web_safari", "default"]}},
+        # web_safari + a PO token provider (bgutil, started in CI) is the combo that
+        # gets past YouTube's datacenter bot-check; tv is a cookieless fallback.
+        "extractor_args": {"youtube": {"player_client": ["web_safari", "tv", "web"]}},
     }
     if _COOKIES.exists() and _COOKIES.stat().st_size > 0:
         ydl_opts["cookiefile"] = str(_COOKIES)
