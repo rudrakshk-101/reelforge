@@ -80,3 +80,23 @@ def upload_short(
 def delete_video(video_id: str, client_secrets: Path, token_file: Path) -> None:
     yt = _client(client_secrets, token_file)
     yt.videos().delete(id=video_id).execute()
+
+
+def set_privacy(
+    video_id: str,
+    privacy_status: str,
+    client_secrets: Path,
+    token_file: Path,
+    made_for_kids: bool = False,
+) -> None:
+    yt = _client(client_secrets, token_file)
+    yt.videos().update(
+        part="status",
+        body={
+            "id": video_id,
+            "status": {
+                "privacyStatus": privacy_status,
+                "selfDeclaredMadeForKids": made_for_kids,
+            },
+        },
+    ).execute()

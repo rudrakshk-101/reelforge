@@ -101,6 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("run")
     sub.add_parser("watch")
     sub.add_parser("status")
+    sub.add_parser("auth-youtube")
     p_retry = sub.add_parser("retry")
     p_retry.add_argument("job_id", type=int)
 
@@ -121,6 +122,16 @@ def main(argv: list[str] | None = None) -> int:
         _run_all(cfg)
     elif args.cmd == "status":
         _status(cfg)
+    elif args.cmd == "auth-youtube":
+        from . import publish_youtube
+
+        tok = cfg.secrets.youtube_token_file
+        if tok.exists():
+            tok.unlink()
+        publish_youtube._client(cfg.secrets.youtube_client_secrets_file, tok)
+        print(f"\nYouTube authorised. Token written to: {tok}")
+        print("Paste its contents into the GitHub secret YOUTUBE_TOKEN:")
+        print(f"  gh secret set YOUTUBE_TOKEN < \"{tok}\"")
     elif args.cmd == "retry":
         store = Store(cfg.db_file)
         store.update_job(args.job_id, status="queued", error=None)

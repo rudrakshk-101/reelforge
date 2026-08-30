@@ -1,15 +1,13 @@
-"""Telegram bridge: notifications + approve/reject gate.
+"""Telegram bridge — plain Bot API over `requests`.
 
-Kept deliberately simple — plain Bot API over `requests`, no long-running process.
-`request_approval` sends the rendered clip with inline Approve/Reject buttons and
-long-polls `getUpdates` until the user taps one (or a timeout is hit).
-
-For this to work the bot must have received at least one message from you (so it can
-DM you) and `TELEGRAM_CHAT_ID` must be your chat id.
+Used by the cloud (GitHub Actions) path: send a clip with Approve/Reject buttons,
+then edit that message later when the decision comes back through the Cloudflare
+Worker. Also used by the local CLI path (`request_approval`, which polls).
 """
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 
@@ -19,7 +17,7 @@ API = "https://api.telegram.org/bot{token}/{method}"
 
 
 def _call(token: str, method: str, **kwargs):
-    r = requests.post(API.format(token=token, method=method), timeout=60, **kwargs)
+    r = requests.post(API.format(token=token, method=method), timeout=120, **kwargs)
     r.raise_for_status()
     return r.json()["result"]
 
@@ -27,21 +25,64 @@ def _call(token: str, method: str, **kwargs):
 def send_message(token: str, chat_id: str, text: str) -> None:
     if not token or not chat_id:
         return
-    _call(token, "sendMessage", data={"chat_id": chat_id, "text": text, "disable_web_page_preview": False})
+    _call(
+        token,
+        "sendMessage",
+        data={"chat_id": chat_id, "text": text, "disable_web_page_preview": False},
+    )
 
 
-def send_clip(token: str, chat_id: str, video_path: Path, caption: str) -> None:
-    if not token or not chat_id:
-        return
+def send_clip_for_approval(
+    token: str,
+    chat_id: str,
+    video_path: Path,
+    caption: str,
+    video_id: str,
+) -> int:
+    """Send the rendered clip with Approve / Reject buttons. Returns the message id.
+
+    callback_data is ``ok:<yt_video_id>`` / ``no:<yt_video_id>`` — the Cloudflare
+    Worker parses that and fires the matching GitHub Actions dispatch.
+    """
+    markup = {
+        "inline_keyboard": [[
+            {"text": "✅ Approve", "callback_data": f"ok:{video_id}"},
+            {"text": "❌ Reject", "callback_data": f"no:{video_id}"},
+        ]]
+    }
     with open(video_path, "rb") as fh:
-        _call(
+        res = _call(
             token,
             "sendVideo",
-            data={"chat_id": chat_id, "caption": caption[:1000]},
+            data={
+                "chat_id": chat_id,
+                "caption": caption[:1000],
+                "reply_markup": json.dumps(markup),
+            },
             files={"video": fh},
         )
+    return int(res["message_id"])
 
 
+def edit_caption(token: str, chat_id: str, message_id: int, caption: str) -> None:
+    if not token or not chat_id:
+        return
+    try:
+        _call(
+            token,
+            "editMessageCaption",
+            data={
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "caption": caption[:1000],
+            },
+        )
+    except Exception:
+        # message may be too old to edit — fall back to a new message
+        send_message(token, chat_id, caption)
+
+
+# --- local CLI path only: blocking poll for a decision --------------------
 def request_approval(
     token: str,
     chat_id: str,
@@ -50,15 +91,18 @@ def request_approval(
     caption: str,
     timeout_s: int = 1800,
 ) -> bool:
-    """Returns True if approved, False if rejected or timed out."""
     if not token or not chat_id:
-        # No Telegram configured -> fail safe: do not publish.
         return False
 
-    # Clear any backlog so we only see fresh taps.
     updates = _call(token, "getUpdates", data={"timeout": 0})
     offset = (updates[-1]["update_id"] + 1) if updates else 0
 
+    markup = {
+        "inline_keyboard": [[
+            {"text": "✅ Approve", "callback_data": f"ok:{clip_id}"},
+            {"text": "❌ Reject", "callback_data": f"no:{clip_id}"},
+        ]]
+    }
     with open(video_path, "rb") as fh:
         _call(
             token,
@@ -66,10 +110,7 @@ def request_approval(
             data={
                 "chat_id": chat_id,
                 "caption": f"Approve this clip?\n\n{caption[:900]}",
-                "reply_markup": (
-                    '{"inline_keyboard":[[{"text":"✅ Approve","callback_data":"ok:%d"},'
-                    '{"text":"❌ Reject","callback_data":"no:%d"}]]}' % (clip_id, clip_id)
-                ),
+                "reply_markup": json.dumps(markup),
             },
             files={"video": fh},
         )
@@ -84,6 +125,10 @@ def request_approval(
                 continue
             data = cq.get("data", "")
             if data.endswith(f":{clip_id}"):
-                _call(token, "answerCallbackQuery", data={"callback_query_id": cq["id"]})
+                _call(
+                    token,
+                    "answerCallbackQuery",
+                    data={"callback_query_id": cq["id"]},
+                )
                 return data.startswith("ok:")
     return False

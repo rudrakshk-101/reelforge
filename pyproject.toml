@@ -18,3 +18,4 @@ where = ["src"]
 [project.scripts]
 reelforge = "reelforge.cli:main"
 reelforge-bot = "reelforge.bot:main"
+reelforge-cloud = "reelforge.cloud:main"

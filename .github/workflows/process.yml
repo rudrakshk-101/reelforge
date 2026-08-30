@@ -1,0 +1,86 @@
+name: process
+
+on:
+  repository_dispatch:
+    types: [process]
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "YouTube URL to clip"
+        required: true
+
+concurrency:
+  group: reelforge
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: System deps (ffmpeg + deno for yt-dlp)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          curl -fsSL https://deno.land/install.sh | sh -s -- -y
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+
+      - name: Install reelforge
+        run: pip install -e .
+
+      - name: Materialise secrets
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+        run: |
+          mkdir -p secrets
+          printf '%s' "$YOUTUBE_CLIENT_SECRET" > secrets/youtube_client_secret.json
+          printf '%s' "$YOUTUBE_TOKEN" > secrets/youtube_token.json
+          {
+            echo "GEMINI_API_KEY=$GEMINI_API_KEY"
+            echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"
+            echo "TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID"
+            echo "YOUTUBE_CLIENT_SECRETS_FILE=secrets/youtube_client_secret.json"
+            echo "YOUTUBE_TOKEN_FILE=secrets/youtube_token.json"
+            echo "R2_ENDPOINT=$R2_ENDPOINT"
+            echo "R2_BUCKET=$R2_BUCKET"
+            echo "R2_ACCESS_KEY=$R2_ACCESS_KEY"
+            echo "R2_SECRET_KEY=$R2_SECRET_KEY"
+            echo "R2_PUBLIC_BASE=$R2_PUBLIC_BASE"
+            echo "IG_USER_ID=$IG_USER_ID"
+            echo "IG_ACCESS_TOKEN=$IG_ACCESS_TOKEN"
+          } > .env
+
+      - name: Process
+        run: |
+          reelforge-cloud process --url "${{ github.event.client_payload.url || github.event.inputs.url }}"
+
+      - name: Persist state
+        if: always()
+        run: |
+          git config user.name "reelforge-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -f reelforge.db 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "state: process [skip ci]"
+          git pull --rebase --autostash origin main || true
+          git push || true

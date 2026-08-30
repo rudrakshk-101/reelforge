@@ -165,3 +165,18 @@ class Store:
             (cutoff,),
         ).fetchone()
         return int(row["n"])
+
+    def uploaded_in_last_24h(self) -> int:
+        """Clips that got a YouTube video id (public or unlisted) in the last 24h."""
+        cutoff = time.time() - 24 * 3600
+        row = self._conn.execute(
+            "SELECT COUNT(*) AS n FROM clips "
+            "WHERE yt_video_id IS NOT NULL AND updated_at >= ?",
+            (cutoff,),
+        ).fetchone()
+        return int(row["n"])
+
+    def clip_by_yt_id(self, video_id: str) -> Optional[sqlite3.Row]:
+        return self._conn.execute(
+            "SELECT * FROM clips WHERE yt_video_id = ?", (video_id,)
+        ).fetchone()
