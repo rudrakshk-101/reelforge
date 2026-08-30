@@ -8,7 +8,7 @@ platforms:
   instagram: false
 
 # Clip selection.
-clips_per_video: 2
+clips_per_video: 3           # clips to cut per source video
 clip_min_seconds: 20
 clip_max_seconds: 58          # keep under 60 so it stays a Short/Reel
 max_original_seconds: 40      # hard cap on seconds of source footage shown per clip

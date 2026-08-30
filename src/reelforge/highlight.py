@@ -49,7 +49,12 @@ For each clip return:
   seconds and should end on a natural sentence boundary.
 - hook_title: <=60 chars, punchy, no clickbait lies.
 - caption: 1-2 sentences for the post body.
-- hashtags: 3-6 relevant tags, no leading '#'.
+- hashtags: 6-9 tags optimised for discovery, no leading '#'. Use this mix:
+  * 2 broad high-traffic tags that fit the clip (e.g. shorts, viral, fyp, trending)
+  * 3-4 mid-size topic tags a viewer of this content would actually search
+  * 1-2 specific/niche tags (the exact subject, person, product, or event)
+  Order them broad -> specific. Never invent fake trends; every tag must be
+  genuinely relevant to what's in the clip.
 - on_screen_text: 3 to 5 SHORT punchy phrases (2-5 words each, Title Case, no end
   punctuation) that will be burned onto the video one after another across its
   duration as big captions. Make them scroll-stopping and specific to what is being
