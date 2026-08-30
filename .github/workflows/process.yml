@@ -52,10 +52,12 @@ jobs:
           R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
           mkdir -p secrets
           printf '%s' "$YOUTUBE_CLIENT_SECRET" > secrets/youtube_client_secret.json
           printf '%s' "$YOUTUBE_TOKEN" > secrets/youtube_token.json
+          printf '%s' "$YOUTUBE_COOKIES" > secrets/youtube_cookies.txt
           {
             echo "GEMINI_API_KEY=$GEMINI_API_KEY"
             echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"

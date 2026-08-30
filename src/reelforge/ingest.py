@@ -9,11 +9,20 @@ Produces, inside the job dir:
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
 import yt_dlp
+
+# Datacenter IPs (GitHub Actions) get bot-walled by YouTube. A cookies.txt from a
+# logged-in session (use a throwaway Google account) gets past it.
+_COOKIES = Path(
+    os.environ.get("YOUTUBE_COOKIES_FILE", "secrets/youtube_cookies.txt")
+)
+if not _COOKIES.is_absolute():
+    _COOKIES = Path(__file__).resolve().parents[2] / _COOKIES
 
 
 def _js_runtimes() -> dict[str, dict]:
@@ -74,7 +83,11 @@ def ingest(url: str, job_dir: Path) -> SourceMeta:
         "extractor_retries": 5,
         "sleep_interval_requests": 1,
         "ignoreerrors": False,
+        # try clients that are less aggressively bot-checked first
+        "extractor_args": {"youtube": {"player_client": ["tv", "web_safari", "default"]}},
     }
+    if _COOKIES.exists() and _COOKIES.stat().st_size > 0:
+        ydl_opts["cookiefile"] = str(_COOKIES)
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
