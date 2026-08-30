@@ -92,8 +92,8 @@ jobs:
           fi
           yt-dlp --version
           yt-dlp -v --cookies secrets/youtube_cookies.txt --skip-download \
-            --extractor-args "youtube:player_client=default,tv_simply;getpot_bgutil_baseurl=http://127.0.0.1:4416" \
-            --print "%(title)s | %(duration)s" "$URL" 2>&1 | grep -Ei "bgutil|pot|error|title|reload|nsig|player" | tail -25 || true
+            --extractor-args "youtube:player_client=default" \
+            --print "%(title)s | %(duration)s" "$URL" 2>&1 | grep -Ei "bgutil|pot token|POT|error|title|reload|playability" | tail -25 || true
 
       - name: Process
         run: |
