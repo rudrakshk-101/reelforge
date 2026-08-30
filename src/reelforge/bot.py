@@ -28,12 +28,18 @@ from . import pipeline
 from .config import get_config
 from .store import Store
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
-)
-log = logging.getLogger("reelforge.bot")
-
 CFG = get_config()
+
+_fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+_root = logging.getLogger()
+_root.setLevel(logging.INFO)
+_root.addHandler(logging.StreamHandler())
+_fileh = logging.FileHandler(CFG.logs_dir / "bot.log", encoding="utf-8")
+_fileh.setFormatter(_fmt)
+_root.addHandler(_fileh)
+for h in _root.handlers:
+    h.setFormatter(_fmt)
+log = logging.getLogger("reelforge.bot")
 URL_RE = re.compile(r"https?://[^\s]+")
 _work_lock = asyncio.Lock()
 
