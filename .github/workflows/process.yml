@@ -13,9 +13,6 @@ concurrency:
   group: reelforge
   cancel-in-progress: false
 
-permissions:
-  contents: write
-
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -28,14 +25,14 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: System deps (ffmpeg + deno for yt-dlp)
+      - name: System deps
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           curl -fsSL https://deno.land/install.sh | sh -s -- -y
           echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
 
-      - name: PO token provider (gets yt-dlp past YouTube's datacenter bot-check)
+      - name: PO token provider
         run: |
           docker run --name bgutil-pot -d --restart unless-stopped \
             -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider
@@ -55,6 +52,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
@@ -62,7 +60,6 @@ jobs:
           R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
-          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
           mkdir -p secrets
           printf '%s' "$YOUTUBE_CLIENT_SECRET" > secrets/youtube_client_secret.json
@@ -83,16 +80,21 @@ jobs:
             echo "IG_ACCESS_TOKEN=$IG_ACCESS_TOKEN"
           } > .env
 
+      - name: Diagnostics
+        run: |
+          URL="${{ github.event.client_payload.url || github.event.inputs.url }}"
+          if [ -s secrets/youtube_cookies.txt ]; then
+            echo "cookies: $(wc -l < secrets/youtube_cookies.txt) lines / $(wc -c < secrets/youtube_cookies.txt) bytes"
+            echo "first line: $(head -1 secrets/youtube_cookies.txt)"
+            echo "auth cookies: $(grep -cE 'SAPISID|__Secure-1PSID|LOGIN_INFO' secrets/youtube_cookies.txt || true)"
+          else
+            echo '!! youtube_cookies.txt EMPTY/MISSING'
+          fi
+          yt-dlp --version
+          yt-dlp --cookies secrets/youtube_cookies.txt --skip-download --no-warnings \
+            --extractor-args "youtube:player_client=web_safari,tv,web" \
+            --print "%(title)s | %(duration)s" "$URL" 2>&1 | tail -15 || true
+
       - name: Process
         run: |
           reelforge-cloud process --url "${{ github.event.client_payload.url || github.event.inputs.url }}"
-
-      - name: Persist state
-        if: always()
-        run: |
-          git config user.name "reelforge-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add -f reelforge.db 2>/dev/null || true
-          git diff --cached --quiet || git commit -m "state: process [skip ci]"
-          git pull --rebase --autostash origin main || true
-          git push || true
