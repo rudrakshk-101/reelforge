@@ -14,6 +14,8 @@ import time
 import traceback
 from pathlib import Path
 
+import shutil
+
 from . import highlight, ingest, notify, publish_instagram, publish_youtube, render, transcribe
 from .config import Config, get_config
 from .store import Store
@@ -21,9 +23,17 @@ from .store import Store
 log = logging.getLogger("reelforge.pipeline")
 
 
-def _job_dir(cfg: Config, job_id: int) -> Path:
+def _job_dir(cfg: Config, job_id: int, url: str | None = None) -> Path:
+    """Per-job working dir. If `url` is given and the dir holds a *different*
+    URL's cached artifacts (job ids can repeat after a DB reset), wipe it first."""
     d = cfg.jobs_dir / f"job_{job_id:05d}"
+    marker = d / "url.txt"
+    if url is not None and d.exists():
+        if not marker.exists() or marker.read_text(encoding="utf-8").strip() != url.strip():
+            shutil.rmtree(d, ignore_errors=True)
     d.mkdir(parents=True, exist_ok=True)
+    if url is not None:
+        marker.write_text(url.strip(), encoding="utf-8")
     return d
 
 
@@ -39,7 +49,7 @@ def prepare_job(job_id: int, cfg: Config | None = None) -> list[int]:
         if job is None:
             raise ValueError(f"no job {job_id}")
         url = job["source_url"]
-        jd = _job_dir(cfg, job_id)
+        jd = _job_dir(cfg, job_id, url)
         log.info("job %s: %s", job_id, url)
 
         meta = ingest.ingest(url, jd)
