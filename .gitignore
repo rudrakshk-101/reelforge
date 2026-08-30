@@ -9,3 +9,4 @@ __pycache__/
 venv/
 
 .tg_webhook_secret
+worker/.wrangler/
