@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: reelforge
+Version: 0.1.0
+Summary: Long-form video -> auto-clipped vertical shorts -> auto-published
+Requires-Python: >=3.10
+Requires-Dist: yt-dlp>=2024.8.6
+Requires-Dist: faster-whisper>=1.0.3
+Requires-Dist: anthropic>=0.40
+Requires-Dist: google-api-python-client>=2.140
+Requires-Dist: google-auth-oauthlib>=1.2
+Requires-Dist: google-auth-httplib2>=0.2
+Requires-Dist: google-cloud-storage>=2.18
+Requires-Dist: requests>=2.32
+Requires-Dist: python-dotenv>=1.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: python-telegram-bot>=21.4
+Requires-Dist: pyttsx3>=2.90

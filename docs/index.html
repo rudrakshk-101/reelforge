@@ -1,0 +1,232 @@
+﻿<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>reelforge</title>
+<meta name="description" content="A personal tool that auto-clips the owner's own long-form videos into short vertical clips and uploads them to the owner's own accounts." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
+
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --fg: #1b1e27;
+    --muted: #565c6e;
+    --hairline: #e3e6ec;
+    --accent: #4f46e5;
+    --accent-soft: #ecebfb;
+    --maxw: 42rem;
+  }
+  :root:not([data-theme="light"]) {
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101219;
+      --surface: #181b23;
+      --fg: #e7e9f0;
+      --muted: #9aa1b5;
+      --hairline: #272b37;
+      --accent: #8f8af6;
+      --accent-soft: #211f38;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101219;
+    --surface: #181b23;
+    --fg: #e7e9f0;
+    --muted: #9aa1b5;
+    --hairline: #272b37;
+    --accent: #8f8af6;
+    --accent-soft: #211f38;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: clamp(2.5rem, 6vw, 5rem) 1.5rem 5rem;
+  }
+
+  .brand {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+  .brand::before {
+    content: "";
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 2px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  h1 {
+    font-size: clamp(1.9rem, 5vw, 2.6rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    text-wrap: balance;
+    margin: 1.4rem 0 0.6rem;
+  }
+  .lede {
+    font-size: 1.075rem;
+    color: var(--muted);
+    max-width: 34rem;
+    margin: 0;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 0.9rem;
+  }
+
+  section { margin-top: 3.25rem; }
+  section h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.75rem;
+  }
+  section h3 {
+    font-size: 0.98rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.4rem;
+  }
+  p { margin: 0 0 0.9rem; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  ul { margin: 0 0 0.9rem; padding-left: 1.15rem; }
+  li { margin: 0.3rem 0; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 1.4rem 1.5rem;
+  }
+  .card p:last-child { margin-bottom: 0; }
+
+  .divider {
+    margin: 3.25rem 0 0;
+    border: 0;
+    border-top: 1px solid var(--hairline);
+  }
+
+  .meta {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 2.75rem;
+  }
+  .meta a { color: var(--muted); }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+</style>
+
+<div class="wrap">
+  <span class="brand">reelforge</span>
+  <h1>A personal video-clipping tool</h1>
+  <p class="lede">
+    reelforge is a private automation script run by one person. It takes long videos
+    that person owns, cuts short vertical highlights from them, and uploads those
+    highlights to that same person's own social accounts.
+  </p>
+
+  <section>
+    <p class="eyebrow">What it does</p>
+    <h2>Overview</h2>
+    <p>
+      The tool runs on the owner's own computer. Given a video link, it downloads the
+      video, transcribes the audio locally, selects a few short segments, renders them
+      as vertical clips with captions, and publishes them to the owner's connected
+      YouTube channel (and optionally Instagram account) through the official platform
+      APIs.
+    </p>
+    <p>
+      It is not a public service. There are no other users, no sign-ups, and no shared
+      infrastructure.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section id="privacy">
+    <p class="eyebrow">Privacy Policy</p>
+    <h2>Privacy Policy</h2>
+
+    <div class="card">
+      <p>
+        This application is operated by a single individual for their own personal use.
+        It exists only to manage that individual's own content on their own accounts.
+      </p>
+    </div>
+
+    <h3>Data it accesses</h3>
+    <p>
+      When authorized, the app uses Google OAuth to obtain permission to upload videos
+      to the account owner's own YouTube channel (the
+      <code>youtube.upload</code> scope). It reads no other Google data.
+    </p>
+
+    <h3>Data it collects, stores, or shares</h3>
+    <ul>
+      <li>The app does <strong>not</strong> collect personal information from any third party.</li>
+      <li>The app does <strong>not</strong> sell, rent, or share any data with anyone.</li>
+      <li>The app does <strong>not</strong> use data for advertising or profiling.</li>
+      <li>
+        OAuth tokens are stored only on the owner's own computer and are used solely to
+        publish the owner's own videos. They can be revoked at any time from the
+        Google Account permissions page.
+      </li>
+      <li>
+        Downloaded source videos and rendered clips are kept temporarily on the owner's
+        computer and deleted after processing.
+      </li>
+    </ul>
+
+    <h3>Google API Services Limited Use</h3>
+    <p>
+      reelforge's use of information received from Google APIs adheres to the
+      <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">
+        Google API Services User Data Policy</a>, including the Limited Use requirements.
+    </p>
+
+    <h3>Retention &amp; deletion</h3>
+    <p>
+      Because no third-party data is collected, there is nothing to request deletion of.
+      The account owner can revoke the app's access at any time, which invalidates all
+      stored tokens.
+    </p>
+
+    <h3>Contact</h3>
+    <p>
+      Questions about this policy can be sent to the project owner at
+      <a href="mailto:rudrakshkumrawat.dev@gmail.com">rudrakshkumrawat.dev@gmail.com</a>.
+    </p>
+  </section>
+
+  <p class="meta">
+    Last updated 30 August 2026 &nbsp;Â·&nbsp;
+    <a href="#privacy">Privacy Policy</a>
+  </p>
+</div>
+</head><body></body></html>

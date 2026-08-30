@@ -1,0 +1,58 @@
+﻿# reelforge configuration. Copy .env.example -> .env for secrets; this file holds
+# non-secret behaviour knobs.
+
+# What to publish and how.
+publish_mode: telegram   # auto | telegram | off
+platforms:
+  youtube: true
+  instagram: false
+
+# Clip selection.
+clips_per_video: 2
+clip_min_seconds: 20
+clip_max_seconds: 58          # keep under 60 so it stays a Short/Reel
+max_original_seconds: 40      # hard cap on seconds of source footage shown per clip
+
+# Rendering.
+render:
+  width: 1080
+  height: 1920
+  crop: center               # center | face   (face needs opencv; falls back to center)
+  captions: true             # burn in word-timed transcript captions
+  on_screen_text: true       # burn in the big catchy phrases Gemini writes
+  voiceover: false           # AI English voiceover — off; original audio is kept
+  background_music_path: ""  # optional local mp3/m4a; ducked to ~12% under the audio
+  webcam_overlay_path: ""    # optional local mp4/webm to composite as PiP; "" = off
+
+# Transcription.
+whisper:
+  model: small                # tiny | base | small | medium | large-v3
+  compute_type: int8          # int8 (CPU) | float16 (GPU)
+  language: null              # null = autodetect
+
+# Highlight model (Gemini).
+llm:
+  model: gemini-3.6-flash    # free tier; auto-falls-back to other flash models on error
+
+# Scheduling / safety caps.
+daily_post_cap: 2             # max clips actually published per 24h (per platform)
+
+# Telegram approve/reject gate (publish_mode: telegram).
+telegram:
+  approval_timeout_minutes: 360   # how long a clip waits for your tap before it's dropped
+watch:
+  sources_file: sources.txt
+  channels: []                # optional: channel/playlist URLs polled by `watch`
+  lookback_days: 3
+
+# YouTube upload defaults.
+youtube:
+  privacy_status: public
+  category_id: "24"           # 24 = Entertainment
+  made_for_kids: false
+
+# Paths.
+paths:
+  jobs_dir: jobs
+  db_file: reelforge.db
+  logs_dir: logs

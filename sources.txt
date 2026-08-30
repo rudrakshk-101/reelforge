@@ -1,0 +1,3 @@
+# One video URL per line. `reelforge watch` picks up new lines and queues them.
+# Lines starting with # and blank lines are ignored. Processed URLs are remembered
+# in the DB, so leaving them here is harmless.

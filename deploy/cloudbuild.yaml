@@ -1,0 +1,58 @@
+# build (with layer cache) -> push -> smoke-test -> deploy the Cloud Run Job.
+# Mirrors the retail-pipeline cloudbuild. Run from the repo root:
+#   gcloud builds submit --config deploy/cloudbuild.yaml
+substitutions:
+  _REGION: us-central1
+  _REPO: reelforge
+  _IMAGE: reelforge
+  _JOB: reelforge-job
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - docker pull ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest || true
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --cache-from=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest
+      - -f
+      - deploy/Dockerfile
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args: [push, --all-tags, "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}"]
+
+  - name: ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$SHORT_SHA
+    entrypoint: python
+    args: [-c, "import reelforge.pipeline, reelforge.cli; print('import OK')"]
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - update
+      - ${_JOB}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$SHORT_SHA
+      - --region=${_REGION}
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+# Notes:
+#  * State: mount a GCS volume for reelforge.db + jobs/, or swap store.py for Firestore.
+#  * Secrets: --set-secrets on the job for ANTHROPIC_API_KEY, IG_ACCESS_TOKEN, etc.
+#  * Schedule: Cloud Scheduler -> Cloud Run Jobs execute, e.g. every 3 hours.
+#  * YouTube OAuth token must be generated once locally and mounted as a secret.
