@@ -151,11 +151,6 @@ def _publish_clip(cfg: Config, store: Store, clip_row) -> dict:
             ig_user_id=cfg.secrets.ig_user_id,
             access_token=cfg.secrets.ig_access_token,
             graph_version=cfg.secrets.ig_graph_version,
-            r2_endpoint=cfg.secrets.r2_endpoint,
-            r2_bucket=cfg.secrets.r2_bucket,
-            r2_access_key=cfg.secrets.r2_access_key,
-            r2_secret_key=cfg.secrets.r2_secret_key,
-            r2_public_base=cfg.secrets.r2_public_base,
         )
         updates.update(ig_media_id=res["media_id"], ig_url=res["url"])
 

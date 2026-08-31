@@ -28,12 +28,6 @@ class Secrets:
     ig_user_id: str
     ig_access_token: str
     ig_graph_version: str
-    # Cloudflare R2 (S3-compatible) — temporary public host for IG Reel uploads
-    r2_endpoint: str
-    r2_bucket: str
-    r2_access_key: str
-    r2_secret_key: str
-    r2_public_base: str
     telegram_bot_token: str
     telegram_chat_id: str
 
@@ -92,11 +86,6 @@ def get_config(config_path: str | None = None) -> Config:
         ig_user_id=os.environ.get("IG_USER_ID", ""),
         ig_access_token=os.environ.get("IG_ACCESS_TOKEN", ""),
         ig_graph_version=os.environ.get("IG_GRAPH_VERSION", "v21.0"),
-        r2_endpoint=os.environ.get("R2_ENDPOINT", ""),
-        r2_bucket=os.environ.get("R2_BUCKET", ""),
-        r2_access_key=os.environ.get("R2_ACCESS_KEY", ""),
-        r2_secret_key=os.environ.get("R2_SECRET_KEY", ""),
-        r2_public_base=os.environ.get("R2_PUBLIC_BASE", ""),
         telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
     )
