@@ -25,14 +25,12 @@ import yt_dlp
 
 _ROOT = Path(__file__).resolve().parents[2]
 
-VIDKRAKEN_KEY = os.environ.get("VIDKRAKEN_KEY", "").strip()
 VIDKRAKEN_BASE = "https://vidkraken.com/api/v2"
-# 720 is a good balance for a 9:16 crop; drop to 480 to save API bandwidth.
-VIDKRAKEN_FORMAT = os.environ.get("VIDKRAKEN_FORMAT", "720")
 
-_COOKIES = Path(os.environ.get("YOUTUBE_COOKIES_FILE", "secrets/youtube_cookies.txt"))
-if not _COOKIES.is_absolute():
-    _COOKIES = _ROOT / _COOKIES
+
+def _cookies_path() -> Path:
+    p = Path(os.environ.get("YOUTUBE_COOKIES_FILE", "secrets/youtube_cookies.txt"))
+    return p if p.is_absolute() else _ROOT / p
 
 
 @dataclass
@@ -62,12 +60,12 @@ def _oembed(url: str) -> dict:
     return {}
 
 
-def _vidkraken(url: str, job_dir: Path) -> SourceMeta:
-    hdr = {"Authorization": f"Bearer {VIDKRAKEN_KEY}"}
+def _vidkraken(url: str, job_dir: Path, api_key: str, fmt: str) -> SourceMeta:
+    hdr = {"Authorization": f"Bearer {api_key}"}
     sub = requests.post(
         f"{VIDKRAKEN_BASE}/download",
         headers={**hdr, "Content-Type": "application/json"},
-        json={"url": url, "format": VIDKRAKEN_FORMAT},
+        json={"url": url, "format": fmt},
         timeout=30,
     )
     sub.raise_for_status()
@@ -176,8 +174,9 @@ def _ytdlp(url: str, job_dir: Path) -> SourceMeta:
             "youtube": {"player_client": ["default", "web_safari", "mweb"]}
         },
     }
-    if _COOKIES.exists() and _COOKIES.stat().st_size > 0:
-        ydl_opts["cookiefile"] = str(_COOKIES)
+    cookies = _cookies_path()
+    if cookies.exists() and cookies.stat().st_size > 0:
+        ydl_opts["cookiefile"] = str(cookies)
     if proxy:
         ydl_opts["proxy"] = proxy
 
@@ -207,9 +206,11 @@ def _ytdlp(url: str, job_dir: Path) -> SourceMeta:
 def ingest(url: str, job_dir: Path) -> SourceMeta:
     job_dir.mkdir(parents=True, exist_ok=True)
     errors = []
-    if VIDKRAKEN_KEY:
+    vidkraken_key = os.environ.get("VIDKRAKEN_KEY", "").strip()
+    if vidkraken_key:
+        fmt = os.environ.get("VIDKRAKEN_FORMAT", "720")
         try:
-            return _vidkraken(url, job_dir)
+            return _vidkraken(url, job_dir, vidkraken_key, fmt)
         except Exception as exc:  # noqa: BLE001
             errors.append(f"vidkraken: {exc}")
             for f in job_dir.glob("source.*"):
