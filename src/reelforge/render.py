@@ -23,13 +23,24 @@ from typing import Any
 
 from . import voiceover
 
-# Windows ffmpeg (gyan build) has no default fontconfig config; drawtext and libass
-# crash without one. Resolve a real font file and hand ffmpeg a minimal config.
-_FONT_DIR = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Fonts"
-_TITLE_FONT = next(
-    (p for p in (_FONT_DIR / "arialbd.ttf", _FONT_DIR / "segoeuib.ttf", _FONT_DIR / "arial.ttf") if p.exists()),
-    None,
+# Windows ffmpeg (gyan build) has no default fontconfig config, and a bare Linux
+# runner (GitHub Actions) has no fonts installed at all — both crash drawtext/libass
+# without a real font file. Try known bold-sans fonts across platforms; whichever
+# exists first wins, and its family name is what the ASS caption style uses.
+_FONT_CANDIDATES: list[tuple[str, Path]] = [
+    ("DejaVu Sans", Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")),
+    ("Liberation Sans", Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")),
+    ("Noto Sans", Path("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf")),
+    ("Arial", Path(r"C:\Windows\Fonts\arialbd.ttf")),
+    ("Segoe UI", Path(r"C:\Windows\Fonts\segoeuib.ttf")),
+    ("Nirmala UI", Path(r"C:\Windows\Fonts\Nirmala.ttc")),
+]
+_TITLE_FONT_FAMILY, _TITLE_FONT = next(
+    ((fam, p) for fam, p in _FONT_CANDIDATES if p.exists()), ("Sans", None)
 )
+# Every directory from the candidates above that actually exists on this host —
+# handed to both fontconfig and the ass filter's fontsdir so family-name lookups work.
+_FONT_DIRS = sorted({p.parent for _, p in _FONT_CANDIDATES if p.exists()})
 
 
 def _ff_path(p: Path | str) -> str:
@@ -40,10 +51,10 @@ def _ff_path(p: Path | str) -> str:
 def _fontconfig_file(job_dir: Path) -> Path:
     conf = job_dir / "fonts.conf"
     if not conf.exists():
+        dirs_xml = "".join(f"  <dir>{d.as_posix()}</dir>\n" for d in _FONT_DIRS)
         conf.write_text(
             '<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "fonts.dtd">\n'
-            f"<fontconfig>\n  <dir>{_FONT_DIR.as_posix()}</dir>\n"
-            "  <cachedir>~/.cache/fontconfig</cachedir>\n"
+            "<fontconfig>\n" + dirs_xml + "  <cachedir>~/.cache/fontconfig</cachedir>\n"
             '  <include ignore_missing="yes">conf.d</include>\n</fontconfig>\n',
             encoding="utf-8",
         )
@@ -79,8 +90,7 @@ def _write_ass(words: list[dict], clip_start: float, clip_end: float, out: Path)
         "[V4+ Styles]\n"
         "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, "
         "Bold, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV\n"
-        # Nirmala UI covers Latin + Devanagari (Hindi); libass falls back for others.
-        "Style: Cap,Nirmala UI,64,&H00FFFFFF,&H00000000,&H80000000,-1,1,4,1,2,60,60,320\n\n"
+        f"Style: Cap,{_TITLE_FONT_FAMILY},64,&H00FFFFFF,&H00000000,&H80000000,-1,1,4,1,2,60,60,320\n\n"
         "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
     )
 
@@ -193,7 +203,9 @@ def render_clip(
     # captions
     if render_cfg.get("captions", True):
         chain.append(
-            f"{last}ass='{_ff_path(ass_path)}':fontsdir='{_ff_path(_FONT_DIR)}'[v2]"
+            f"{last}ass='{_ff_path(ass_path)}':fontsdir='{_ff_path(_FONT_DIRS[0])}'[v2]"
+            if _FONT_DIRS
+            else f"{last}ass='{_ff_path(ass_path)}'[v2]"
         )
         last = "[v2]"
 

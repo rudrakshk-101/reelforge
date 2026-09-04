@@ -26,7 +26,11 @@ jobs:
           cache: pip
 
       - name: System deps
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fontconfig fonts-dejavu-core
+          sudo apt-get install -y -qq fonts-noto-core || true
+          fc-cache -f || true
 
       - name: Install reelforge
         run: pip install -e .

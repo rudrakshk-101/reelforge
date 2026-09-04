@@ -28,7 +28,11 @@ def send_message(token: str, chat_id: str, text: str) -> None:
     _call(
         token,
         "sendMessage",
-        data={"chat_id": chat_id, "text": text, "disable_web_page_preview": False},
+        data={
+            "chat_id": chat_id,
+            "text": text[:3900],  # Telegram caps messages at 4096 chars
+            "disable_web_page_preview": False,
+        },
     )
 
 
