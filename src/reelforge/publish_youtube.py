@@ -9,6 +9,7 @@ Quota note: an upload costs ~1600 units of the default 10,000/day, so ~6 uploads
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from google.auth.transport.requests import Request
@@ -24,7 +25,9 @@ SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 def _client(client_secrets: Path, token_file: Path):
     creds: Credentials | None = None
     if token_file.exists():
-        creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
+        # tolerate a stray UTF-8 BOM (e.g. a secret pasted via a tool that adds one)
+        data = json.loads(token_file.read_text(encoding="utf-8-sig"))
+        creds = Credentials.from_authorized_user_info(data, SCOPES)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
