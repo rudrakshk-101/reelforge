@@ -51,7 +51,9 @@ def _process(url: str) -> int:
     store.close()
 
     try:
-        clip_ids = pipeline.prepare_job(job_id, cfg)
+        clip_ids = pipeline.prepare_job(
+            job_id, cfg, on_stage=lambda msg: notify.send_message(tok, chat, msg)
+        )
     except Exception as exc:  # noqa: BLE001
         notify.send_message(tok, chat, f"❌ Job {job_id} failed:\n{exc}")
         return 1

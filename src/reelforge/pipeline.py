@@ -40,9 +40,19 @@ def _job_dir(cfg: Config, job_id: int, url: str | None = None) -> Path:
 # --------------------------------------------------------------------------
 # stages 1-4: fetch + render, no publishing
 # --------------------------------------------------------------------------
-def prepare_job(job_id: int, cfg: Config | None = None) -> list[int]:
-    """Run ingest -> transcribe -> highlight -> render. Returns rendered clip ids."""
+def prepare_job(
+    job_id: int,
+    cfg: Config | None = None,
+    on_stage=None,
+) -> list[int]:
+    """Run ingest -> transcribe -> highlight -> render. Returns rendered clip ids.
+
+    ``on_stage``, if given, is called with a short human-readable string after each
+    stage finishes — used to send "still working" progress pings (e.g. to Telegram)
+    so a several-minute job doesn't look stuck.
+    """
     cfg = cfg or get_config()
+    ping = on_stage or (lambda _msg: None)
     store = Store(cfg.db_file)
     try:
         job = store._conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
@@ -52,6 +62,7 @@ def prepare_job(job_id: int, cfg: Config | None = None) -> list[int]:
         jd = _job_dir(cfg, job_id, url)
         log.info("job %s: %s", job_id, url)
 
+        ping("📥 Downloading the video…")
         meta = ingest.ingest(url, jd)
         store.update_job(
             job_id,
@@ -60,9 +71,11 @@ def prepare_job(job_id: int, cfg: Config | None = None) -> list[int]:
             duration_sec=meta.duration_sec,
             status="ingested",
         )
+        ping(f"🎧 Got it: “{meta.title[:60]}” — transcribing now (this is the slow part)…")
 
         tr = transcribe.transcribe(meta.video_path, jd, cfg["whisper"])
         store.update_job(job_id, status="transcribed")
+        ping("🧠 Transcribed — asking Gemini to pick the best moments…")
 
         clips = highlight.select_highlights(
             tr,
@@ -75,6 +88,7 @@ def prepare_job(job_id: int, cfg: Config | None = None) -> list[int]:
             api_key=cfg.secrets.gemini_api_key,
         )
         store.update_job(job_id, status="highlighted")
+        ping(f"✂️ Picked {len(clips)} clip(s) — rendering…")
 
         rendered_ids: list[int] = []
         for i, clip in enumerate(clips):
@@ -104,6 +118,7 @@ def prepare_job(job_id: int, cfg: Config | None = None) -> list[int]:
                 max_original_seconds=cfg["max_original_seconds"],
             )
             store.update_clip(clip_id, render_path=str(rc.path), status="rendered")
+            ping(f"🎬 Rendered clip {i + 1}/{len(clips)} — uploading to YouTube…")
             rendered_ids.append(clip_id)
         store.update_job(job_id, status="rendered")
         return rendered_ids
