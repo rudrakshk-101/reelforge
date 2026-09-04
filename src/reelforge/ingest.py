@@ -1,9 +1,13 @@
-"""Stage 1: download the source video + metadata with yt-dlp.
+"""Stage 1: download the source video + metadata.
+
+Two download backends:
+  * VidKraken API  — used when VIDKRAKEN_KEY is set. Works from any IP (they run the
+    proxying), so this is the cloud / GitHub Actions path.
+  * yt-dlp         — the local fallback (home IP). Also the fallback if VidKraken fails.
 
 Produces, inside the job dir:
-  source.mp4        — best <=1080p mp4 (re-muxed if needed)
-  source.info.json  — yt-dlp metadata dump
-  subs.*.vtt        — creator-supplied subtitles, if any (used to speed transcription)
+  source.mp4        — the downloaded video
+  source.info.json  — metadata (small dict)
 """
 
 from __future__ import annotations
@@ -11,28 +15,127 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import requests
 import yt_dlp
 
-# Datacenter IPs (GitHub Actions) get bot-walled by YouTube. A cookies.txt from a
-# logged-in session (use a throwaway Google account) gets past it.
-_COOKIES = Path(
-    os.environ.get("YOUTUBE_COOKIES_FILE", "secrets/youtube_cookies.txt")
-)
+_ROOT = Path(__file__).resolve().parents[2]
+
+VIDKRAKEN_KEY = os.environ.get("VIDKRAKEN_KEY", "").strip()
+VIDKRAKEN_BASE = "https://vidkraken.com/api/v2"
+# 720 is a good balance for a 9:16 crop; drop to 480 to save API bandwidth.
+VIDKRAKEN_FORMAT = os.environ.get("VIDKRAKEN_FORMAT", "720")
+
+_COOKIES = Path(os.environ.get("YOUTUBE_COOKIES_FILE", "secrets/youtube_cookies.txt"))
 if not _COOKIES.is_absolute():
-    _COOKIES = Path(__file__).resolve().parents[2] / _COOKIES
+    _COOKIES = _ROOT / _COOKIES
 
 
+@dataclass
+class SourceMeta:
+    video_path: Path
+    info_path: Path
+    title: str
+    channel: str
+    duration_sec: float
+    subtitle_path: Path | None
+
+
+# --------------------------------------------------------------------------
+# backend 1: VidKraken (cloud-friendly)
+# --------------------------------------------------------------------------
+def _oembed(url: str) -> dict:
+    try:
+        r = requests.get(
+            "https://www.youtube.com/oembed",
+            params={"url": url, "format": "json"},
+            timeout=15,
+        )
+        if r.ok:
+            return r.json()
+    except Exception:
+        pass
+    return {}
+
+
+def _vidkraken(url: str, job_dir: Path) -> SourceMeta:
+    hdr = {"Authorization": f"Bearer {VIDKRAKEN_KEY}"}
+    sub = requests.post(
+        f"{VIDKRAKEN_BASE}/download",
+        headers={**hdr, "Content-Type": "application/json"},
+        json={"url": url, "format": VIDKRAKEN_FORMAT},
+        timeout=30,
+    )
+    sub.raise_for_status()
+    j = sub.json()
+    job_id = j["jobId"]
+    title = j.get("title") or _oembed(url).get("title") or url
+    duration = float(j.get("duration") or 0.0)
+
+    download_url = None
+    deadline = time.time() + 300
+    while time.time() < deadline:
+        st = requests.get(
+            f"{VIDKRAKEN_BASE}/download/{job_id}", headers=hdr, timeout=30
+        ).json()
+        status = (st.get("status") or "").upper()
+        duration = float(st.get("duration") or duration)
+        if status == "COMPLETED":
+            download_url = st.get("downloadUrl")
+            break
+        if status in ("FAILED", "ERROR"):
+            raise RuntimeError(f"VidKraken job failed: {st}")
+        time.sleep(4)
+    if not download_url:
+        raise TimeoutError("VidKraken job did not complete in time")
+
+    out = job_dir / "source.mp4"
+    with requests.get(download_url, stream=True, timeout=300) as r:
+        r.raise_for_status()
+        with open(out, "wb") as fh:
+            for chunk in r.iter_content(1 << 20):
+                fh.write(chunk)
+    if out.stat().st_size < 20000:
+        raise RuntimeError("VidKraken download produced a tiny/empty file")
+
+    meta = _oembed(url)
+    info = {
+        "title": title,
+        "channel": meta.get("author_name") or "",
+        "duration": duration or _ffprobe_duration(out),
+        "backend": "vidkraken",
+    }
+    (job_dir / "source.info.json").write_text(json.dumps(info), encoding="utf-8")
+    return SourceMeta(
+        video_path=out,
+        info_path=job_dir / "source.info.json",
+        title=info["title"],
+        channel=info["channel"],
+        duration_sec=info["duration"],
+        subtitle_path=None,
+    )
+
+
+def _ffprobe_duration(path: Path) -> float:
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", str(path)],
+            capture_output=True, text=True, timeout=60,
+        )
+        return float(out.stdout.strip() or 0.0)
+    except Exception:
+        return 0.0
+
+
+# --------------------------------------------------------------------------
+# backend 2: yt-dlp (home IP)
+# --------------------------------------------------------------------------
 def _js_runtimes() -> dict[str, dict]:
-    """yt-dlp now needs a JS runtime for YouTube. Prefer deno, fall back to node.
-
-    Pass an explicit binary path so it works even when PATH wasn't refreshed after
-    installing the runtime (common on Windows). Format is a dict:
-    ``{"deno": {"path": "..."}, "node": {}}``.
-    """
-    # Extra spots to look on Windows when PATH wasn't refreshed after a winget install.
     extra = {
         "deno": [
             Path.home()
@@ -50,32 +153,15 @@ def _js_runtimes() -> dict[str, dict]:
     return runtimes
 
 
-@dataclass
-class SourceMeta:
-    video_path: Path
-    info_path: Path
-    title: str
-    channel: str
-    duration_sec: float
-    subtitle_path: Path | None
-
-
-def ingest(url: str, job_dir: Path) -> SourceMeta:
-    job_dir.mkdir(parents=True, exist_ok=True)
-    outtmpl = str(job_dir / "source.%(ext)s")
-
-    # Residential proxy — only needed to download from a datacenter IP (cloud).
-    # When running on a home connection (the laptop), leave PROXY_URL unset.
+def _ytdlp(url: str, job_dir: Path) -> SourceMeta:
     proxy = os.environ.get("PROXY_URL", "").strip()
-    max_h = 720 if proxy else 1080  # cap resolution to save proxy bandwidth
+    max_h = 720 if proxy else 1080
 
     ydl_opts = {
-        "outtmpl": outtmpl,
+        "outtmpl": str(job_dir / "source.%(ext)s"),
         "format": f"bv*[height<={max_h}]+ba/b[height<={max_h}]/bv*+ba/b/best",
         "merge_output_format": "mp4",
         "writeinfojson": True,
-        # Subtitles are best-effort only (Whisper does the real transcription) and
-        # YouTube 429s them aggressively, so don't let them fail the job.
         "writesubtitles": False,
         "writeautomaticsub": False,
         "quiet": True,
@@ -86,9 +172,6 @@ def ingest(url: str, job_dir: Path) -> SourceMeta:
         "retries": 10,
         "fragment_retries": 10,
         "extractor_retries": 5,
-        "sleep_interval_requests": 1,
-        "ignoreerrors": False,
-        # default works from a home IP; web_safari/mweb are fallbacks.
         "extractor_args": {
             "youtube": {"player_client": ["default", "web_safari", "mweb"]}
         },
@@ -103,25 +186,36 @@ def ingest(url: str, job_dir: Path) -> SourceMeta:
 
     video_path = job_dir / "source.mp4"
     if not video_path.exists():
-        # fall back to whatever extension landed
-        cands = sorted(job_dir.glob("source.*"))
-        cands = [c for c in cands if c.suffix not in {".json", ".vtt"}]
+        cands = [
+            c for c in sorted(job_dir.glob("source.*"))
+            if c.suffix not in {".json", ".vtt"}
+        ]
         if not cands:
             raise FileNotFoundError(f"yt-dlp produced no video file in {job_dir}")
         video_path = cands[0]
 
-    info_path = job_dir / "source.info.json"
-    if not info_path.exists():
-        info_path.write_text(json.dumps(info), encoding="utf-8")
-
-    subs = sorted(job_dir.glob("source*.vtt"))
-    subtitle_path = subs[0] if subs else None
-
     return SourceMeta(
         video_path=video_path,
-        info_path=info_path,
+        info_path=job_dir / "source.info.json",
         title=info.get("title") or url,
         channel=info.get("channel") or info.get("uploader") or "",
         duration_sec=float(info.get("duration") or 0.0),
-        subtitle_path=subtitle_path,
+        subtitle_path=None,
     )
+
+
+def ingest(url: str, job_dir: Path) -> SourceMeta:
+    job_dir.mkdir(parents=True, exist_ok=True)
+    errors = []
+    if VIDKRAKEN_KEY:
+        try:
+            return _vidkraken(url, job_dir)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"vidkraken: {exc}")
+            for f in job_dir.glob("source.*"):
+                f.unlink(missing_ok=True)
+    try:
+        return _ytdlp(url, job_dir)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"yt-dlp: {exc}")
+        raise RuntimeError("download failed — " + " | ".join(errors))

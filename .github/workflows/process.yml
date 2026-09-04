@@ -26,24 +26,10 @@ jobs:
           cache: pip
 
       - name: System deps
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
-          curl -fsSL https://deno.land/install.sh | sh -s -- -y
-          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
-
-      - name: PO token provider
-        run: |
-          docker run --name bgutil-pot -d --restart unless-stopped \
-            -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider
-          for i in $(seq 1 20); do
-            curl -sf http://127.0.0.1:4416/ping >/dev/null && break || sleep 1
-          done
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
       - name: Install reelforge
-        run: |
-          pip install -e .
-          pip install -U yt-dlp bgutil-ytdlp-pot-provider
+        run: pip install -e .
 
       - name: Materialise secrets
         env:
@@ -52,54 +38,23 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
-          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
-          PROXY_URL: ${{ secrets.PROXY_URL }}
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
-          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
-          R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+          VIDKRAKEN_KEY: ${{ secrets.VIDKRAKEN_KEY }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
         run: |
           mkdir -p secrets
           printf '%s' "$YOUTUBE_CLIENT_SECRET" > secrets/youtube_client_secret.json
           printf '%s' "$YOUTUBE_TOKEN" > secrets/youtube_token.json
-          printf '%s' "$YOUTUBE_COOKIES" > secrets/youtube_cookies.txt
           {
             echo "GEMINI_API_KEY=$GEMINI_API_KEY"
             echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"
             echo "TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID"
             echo "YOUTUBE_CLIENT_SECRETS_FILE=secrets/youtube_client_secret.json"
             echo "YOUTUBE_TOKEN_FILE=secrets/youtube_token.json"
-            echo "PROXY_URL=$PROXY_URL"
-            echo "R2_ENDPOINT=$R2_ENDPOINT"
-            echo "R2_BUCKET=$R2_BUCKET"
-            echo "R2_ACCESS_KEY=$R2_ACCESS_KEY"
-            echo "R2_SECRET_KEY=$R2_SECRET_KEY"
-            echo "R2_PUBLIC_BASE=$R2_PUBLIC_BASE"
+            echo "VIDKRAKEN_KEY=$VIDKRAKEN_KEY"
             echo "IG_USER_ID=$IG_USER_ID"
             echo "IG_ACCESS_TOKEN=$IG_ACCESS_TOKEN"
           } > .env
-
-      - name: Diagnostics
-        run: |
-          URL="${{ github.event.client_payload.url || github.event.inputs.url }}"
-          if [ -s secrets/youtube_cookies.txt ]; then
-            echo "cookies: $(wc -l < secrets/youtube_cookies.txt) lines / $(wc -c < secrets/youtube_cookies.txt) bytes"
-            echo "first line: $(head -1 secrets/youtube_cookies.txt)"
-            echo "auth cookies: $(grep -cE 'SAPISID|__Secure-1PSID|LOGIN_INFO' secrets/youtube_cookies.txt || true)"
-          else
-            echo '!! youtube_cookies.txt EMPTY/MISSING'
-          fi
-          yt-dlp --version
-          [ -n "$PROXY_URL" ] && echo "proxy: set (${#PROXY_URL} chars)" || echo "proxy: NOT set"
-          yt-dlp --cookies secrets/youtube_cookies.txt --no-warnings \
-            ${PROXY_URL:+--proxy "$PROXY_URL"} \
-            --extractor-args "youtube:player_client=web_safari,mweb,android" \
-            -f "bv*[height<=720]+ba/b[height<=720]/b" \
-            --print "OK: %(title)s | %(duration)ss | %(format)s" \
-            --skip-download "$URL" 2>&1 | tail -8 || true
 
       - name: Process
         run: |
