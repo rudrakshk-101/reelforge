@@ -1,15 +1,12 @@
-﻿yt-dlp>=2024.8.6
+yt-dlp>=2024.8.6
 faster-whisper>=1.0.3
 google-genai>=1.0
 pydantic>=2.7
 google-api-python-client>=2.140
 google-auth-oauthlib>=1.2
 google-auth-httplib2>=0.2
-
 requests>=2.32
 python-dotenv>=1.0
 pyyaml>=6.0
 python-telegram-bot>=21.4
-# ffmpeg + ffprobe must be installed as system binaries and on PATH.
-# TTS: pyttsx3 is offline/free; swap for a cloud TTS SDK if you want better voices.
 pyttsx3>=2.90
