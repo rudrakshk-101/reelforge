@@ -22,18 +22,42 @@ from googleapiclient.http import MediaFileUpload
 SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 
 
-def _client(client_secrets: Path, token_file: Path):
+class YouTubeAuthExpired(RuntimeError):
+    """Raised when the stored YouTube token is gone/expired and there's no browser
+    available to re-authorize (i.e. we're running in the cloud, not on your PC)."""
+
+
+_REAUTH_MSG = (
+    "YouTube authorization has expired or is missing.\n\n"
+    "Fix it from your computer:\n"
+    "  1. cd to the reelforge folder\n"
+    "  2. run: python -m reelforge auth-youtube   (opens a browser, approve it)\n"
+    "  3. run: gh secret set YOUTUBE_TOKEN --repo rudrakshk-101/reelforge "
+    "< secrets\\youtube_token.json\n\n"
+    "Then just resend your video link."
+)
+
+
+def _client(client_secrets: Path, token_file: Path, allow_interactive: bool = False):
     creds: Credentials | None = None
     if token_file.exists():
-        # tolerate a stray UTF-8 BOM (e.g. a secret pasted via a tool that adds one)
-        data = json.loads(token_file.read_text(encoding="utf-8-sig"))
-        creds = Credentials.from_authorized_user_info(data, SCOPES)
+        try:
+            # tolerate a stray UTF-8 BOM (e.g. a secret pasted via a tool that adds one)
+            data = json.loads(token_file.read_text(encoding="utf-8-sig"))
+            creds = Credentials.from_authorized_user_info(data, SCOPES)
+        except Exception:
+            creds = None
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
+            try:
+                creds.refresh(Request())
+            except Exception as exc:
+                raise YouTubeAuthExpired(_REAUTH_MSG) from exc
+        elif allow_interactive:
             flow = InstalledAppFlow.from_client_secrets_file(str(client_secrets), SCOPES)
             creds = flow.run_local_server(port=0)
+        else:
+            raise YouTubeAuthExpired(_REAUTH_MSG)
         token_file.parent.mkdir(parents=True, exist_ok=True)
         token_file.write_text(creds.to_json(), encoding="utf-8")
     return build("youtube", "v3", credentials=creds)

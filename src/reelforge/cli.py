@@ -128,7 +128,9 @@ def main(argv: list[str] | None = None) -> int:
         tok = cfg.secrets.youtube_token_file
         if tok.exists():
             tok.unlink()
-        publish_youtube._client(cfg.secrets.youtube_client_secrets_file, tok)
+        publish_youtube._client(
+            cfg.secrets.youtube_client_secrets_file, tok, allow_interactive=True
+        )
         print(f"\nYouTube authorised. Token written to: {tok}")
         print("Paste its contents into the GitHub secret YOUTUBE_TOKEN:")
         print(f"  gh secret set YOUTUBE_TOKEN < \"{tok}\"")
