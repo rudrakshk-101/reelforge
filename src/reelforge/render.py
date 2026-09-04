@@ -272,9 +272,9 @@ def render_clip(
         "-c:v",
         "libx264",
         "-preset",
-        "medium",
+        "veryfast",  # shared CI CPU — speed over squeezing out a few % filesize
         "-crf",
-        "20",
+        "21",
         "-pix_fmt",
         "yuv420p",
         "-c:a",

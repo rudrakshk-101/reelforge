@@ -26,7 +26,8 @@ render:
 
 # Transcription.
 whisper:
-  model: small                # tiny | base | small | medium | large-v3
+  model: base                 # tiny | base | small | medium | large-v3 — base is ~2x
+                               # faster than small on the free GitHub CI runner, still solid
   compute_type: int8          # int8 (CPU) | float16 (GPU)
   language: null              # null = autodetect
 

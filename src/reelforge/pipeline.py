@@ -71,7 +71,12 @@ def prepare_job(
             duration_sec=meta.duration_sec,
             status="ingested",
         )
-        ping(f"🎧 Got it: “{meta.title[:60]}” — transcribing now (this is the slow part)…")
+        mins = meta.duration_sec / 60
+        eta = "a few minutes" if mins <= 15 else f"~{round(mins / 4)}-{round(mins / 2.5)} min"
+        ping(
+            f"🎧 Got it: “{meta.title[:60]}” ({mins:.0f} min) — transcribing now, "
+            f"this is the slow part, roughly {eta}…"
+        )
 
         tr = transcribe.transcribe(meta.video_path, jd, cfg["whisper"])
         store.update_job(job_id, status="transcribed")
